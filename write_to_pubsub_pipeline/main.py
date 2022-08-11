@@ -1,13 +1,14 @@
 import argparse
-import logging
-from pprint import pprint
 import sys
+import uuid
 
 import apache_beam as beam
-from pipeline.options import get_pipeline_options
+from apache_beam.io import WriteToBigQuery
+from apache_beam.io.gcp.pubsub import PubsubMessage, WriteToPubSub
+
 import config as cfg
-from pipeline.utils import get_dataset, ConvertToPubSubMessage
-from apache_beam.io.gcp.pubsub import WriteToPubSub
+from pipeline.options import get_pipeline_options
+from pipeline.utils import get_dataset
 
 
 def parse_arguments(argv):
@@ -51,14 +52,38 @@ def run():
     train_data = train_data[:10]
 
     with beam.Pipeline(options=pipeline_options) as pipeline:
-        _ = (
+        docs = (
             pipeline
             | "Load Documents" >> beam.Create(train_data)
-            | "Take only first few words" >> beam.Map(lambda x: x[:140])
-            | "Convert to PubSub Message" >> beam.ParDo(ConvertToPubSubMessage())
+            | "Take only first few words" >> beam.Map(lambda x: x[:1024])
+            | "Replace new lines with spaces"
+            >> beam.Map(lambda x: x.replace("\n", " "))
+            | "Assign unique key"
+            >> beam.Map(lambda x: {"id": str(uuid.uuid4()), "text": x})
+        )
+
+        # Write to PubSub for streaming
+        _ = (
+            docs
+            | "Convert to PubSub Message"
+            >> beam.Map(
+                lambda x: PubsubMessage(
+                    data=x.get("text").encode("utf-8"), attributes={"id": x.get("id")}
+                )
+            )
             | "Write to PubSub"
             >> WriteToPubSub(topic=cfg.TOPIC_ID, with_attributes=True)
         )
+
+        # # Write to BigQuery for tracking
+        # _ = (
+        #     docs
+        #     | "Write to BQ" >> WriteToBigQuery(
+        #         method='STREAMING_INSERTS',
+        #         schema=cfg.TABLE_SCHEMA,
+        #         write_disposition = beam.io.BigQueryDisposition.WRITE_APPEND,
+        #         create_disposition=beam.io.BigQueryDisposition.CREATE_IF_NEEDED)
+        #     )
 
 
 if __name__ == "__main__":

@@ -1,18 +1,16 @@
 import argparse
-import logging
 import sys
-from pprint import pprint
 
 import apache_beam as beam
+from apache_beam.io import WriteToBigQuery
 from apache_beam.io.gcp.pubsub import ReadFromPubSub
-from apache_beam.transforms import trigger, window
 
 import config as cfg
 from pipeline.options import get_pipeline_options
 from pipeline.transformations import (
     Decode,
-    FormatClusterUpdate,
     GetEmbedding,
+    GetUpdates,
     NormalizeEmbedding,
     StatefulOnlineClustering,
 )
@@ -48,37 +46,6 @@ def run():
         project=args.project,
         mode=args.mode,
     )
-    # example_docs = [
-    #     {
-    #         "uuid": "Movies (Star Wars 1)",
-    #         "text": "Star Wars is my favourite movie!",
-    #     },
-    #     {
-    #         "uuid": "Movies (Star Wars 2)",
-    #         "text": "I reject the later edits. Clearly, Han Solo shot first!",
-    #     },
-    #     {
-    #         "uuid": "Turtles",
-    #         "text": "I like turtles.",
-    #     },
-    #     {
-    #         "uuid": "Weather 1",
-    #         "text": (
-    #             "The weather next week will be cold and dry with bouts of fog "
-    #             "but there are signs rain and possibly snow could arrive by Christmas Day."
-    #         ),
-    #     },
-    #     {
-    #         "uuid": "Movies (Star Trek)",
-    #         "text": "Star Trek is an awesome series.",
-    #     },
-    #     {
-    #         "uuid": "Weather 2",
-    #         "text": (
-    #             "After a stormy week, strong winds will blow and it will rain intermittently."
-    #         ),
-    #     },
-    # ]
 
     with beam.Pipeline(options=pipeline_options) as pipeline:
         docs = (
@@ -87,7 +54,6 @@ def run():
             >> ReadFromPubSub(subscription=cfg.SUBSCRIPTION_ID, with_attributes=True)
             | "Decode PubSubMessage" >> beam.ParDo(Decode())
         )
-        # docs = pipeline | "Load Documents" >> beam.Create(example_docs)
         embedding = (
             docs
             | "Get Text Embedding" >> beam.ParDo(GetEmbedding())
@@ -99,10 +65,15 @@ def run():
             | "StatefulClustering using Birch" >> beam.ParDo(StatefulOnlineClustering())
         )
 
-        _ = clustering | "Format Update" >> beam.ParDo(FormatClusterUpdate())
+        updated_clusters = clustering | "Format Update" >> beam.ParDo(GetUpdates())
+
         # _ = (
-        #     embedding
-        #     | "Print" >> beam.Map(pprint)
+        #     updated_clusters
+        #     | "Write to BQ" >> WriteToBigQuery(
+        #         method='STREAMING_INSERTS',
+        #         schema=cfg.TABLE_SCHEMA,
+        #         write_disposition = beam.io.BigQueryDisposition.WRITE_APPEND,
+        #         create_disposition=beam.io.BigQueryDisposition.CREATE_IF_NEEDED)
         # )
 
 

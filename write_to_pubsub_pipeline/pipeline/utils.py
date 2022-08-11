@@ -1,7 +1,5 @@
-from sklearn.datasets import fetch_20newsgroups
 import apache_beam as beam
-from apache_beam.io.gcp.pubsub import PubsubMessage
-import uuid
+from sklearn.datasets import fetch_20newsgroups
 
 
 def get_dataset(categories: list, subset: str = "train"):
@@ -22,16 +20,3 @@ def get_dataset(categories: list, subset: str = "train"):
     list_subset_data = list(newsgroups_subset.data)
     list_subset_targets = list(newsgroups_subset.target)
     return list_subset_data, list_subset_targets
-
-
-class ConvertToPubSubMessage(beam.DoFn):
-    def process(self, element):
-        processed_string = element.replace("\n", " ")
-        encoded_string =  processed_string.encode("utf-8")
-        element = PubsubMessage(
-            data=encoded_string, attributes={"text": processed_string, "uuid": str(uuid.uuid4())}
-        )
-        # element = PubsubMessage(
-        #     data=encoded_string, attributes={"text": processed_string, "uuid": processed_string}
-        # )
-        yield element
