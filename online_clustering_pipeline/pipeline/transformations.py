@@ -6,7 +6,8 @@ from apache_beam.coders import PickleCoder
 from apache_beam.transforms.userstate import ReadModifyWriteStateSpec
 from sentence_transformers import SentenceTransformer
 from sklearn.cluster import Birch
-
+import yagmail
+import json
 
 class SentenceEmbedder:
     def __init__(self):
@@ -78,6 +79,7 @@ class StatefulOnlineClustering(beam.DoFn):
     DATA_ITEMS_SPEC = ReadModifyWriteStateSpec("data_items", PickleCoder())
     EMBEDDINGS_SPEC = ReadModifyWriteStateSpec("embeddings", PickleCoder())
     UPDATE_COUNTER_SPEC = ReadModifyWriteStateSpec("update_counter", PickleCoder())
+    CLUSTERS_COUNTER_SPEC = ReadModifyWriteStateSpec("num_clusters", PickleCoder())
 
     def process(
         self,
@@ -86,6 +88,7 @@ class StatefulOnlineClustering(beam.DoFn):
         collected_docs_state=beam.DoFn.StateParam(DATA_ITEMS_SPEC),
         collected_embeddings_state=beam.DoFn.StateParam(EMBEDDINGS_SPEC),
         update_counter_state=beam.DoFn.StateParam(UPDATE_COUNTER_SPEC),
+        num_clusters_state = beam.DoFn.StateParam(CLUSTERS_COUNTER_SPEC),
         *args,
         **kwargs,
     ):
@@ -107,6 +110,7 @@ class StatefulOnlineClustering(beam.DoFn):
         collected_documents = collected_docs_state.read() or dict()
         collected_embeddings = collected_embeddings_state.read() or dict()
         update_counter = update_counter_state.read() or Counter()
+        prev_num_clusters = num_clusters_state.read() or Counter()
 
         # 2. Extract document, add to state, and add to clustering model
         _, doc = element
@@ -122,18 +126,30 @@ class StatefulOnlineClustering(beam.DoFn):
         cluster_labels = clustering.predict(
             np.array(list(collected_embeddings.values()))
         )
+        num_clusters = len(set(cluster_labels))
+        if num_clusters > prev_num_clusters:
+          trigger_email_alert()
 
         # 4. Write states
         model_state.write(clustering)
         collected_docs_state.write(collected_documents)
         collected_embeddings_state.write(collected_embeddings)
         update_counter_state.write(update_counter)
+        num_clusters_state.write(num_clusters)
+
         yield {
             "labels": cluster_labels,
             "docs": collected_documents,
             "id": collected_embeddings.keys(),
             "counter": update_counter,
         }
+
+def trigger_email_alert(receiver:str = "shubham.krishna@ml6.eu"):
+    with open('../cred.json') as json_file:
+        cred = json.load(json_file)
+    yag = yagmail.SMTP(**cred)
+    body = "A new cluster has been created"
+    yag.send(to=receiver, subject='New Cluster Alert', contents=body)
 
 
 class GetUpdates(beam.DoFn):
@@ -152,3 +168,6 @@ class GetUpdates(beam.DoFn):
         print(label_items_map)
         print("\n\n\n\n")
         yield label_items_map
+
+
+# class SendEmail(beam.DoFn):
