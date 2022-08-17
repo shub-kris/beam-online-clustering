@@ -94,18 +94,32 @@ class StatefulOnlineClustering(beam.DoFn):
         **kwargs,
     ):
         """
-        Takes the embedding of a document and updates the clustering model
+        We use the `process` method of the `DoFn` class to define a function that takes in a document,
+        extracts its embedding vector, and adds it to a stateful clustering model.
+
+        The `process` method takes in a number of arguments, including the `element` that is passed in from
+        the pipeline. The `element` is a tuple of the form `(key, value)`, where `key` is the key of the
+        element, and `value` is the value of the element. In our case, the `key` is the timestamp of the
+        element, and the `value` is the document.
+
+        The `process` method also takes in a number of state parameters, which are used to store the state
+        of the clustering model, the documents, and the embedding vectors.
+
+        The `process` method first initialises or loads the states. It then extracts the document, adds it
+        to
 
         Args:
-          element: The input element to be processed.
-          model_state: This is the state of the clustering model. It is a stateful parameter, which means
-        that it will be updated after each call to the process function.
-          collected_docs_state: This is a stateful dictionary that stores the documents that have been
-        processed so far.
-          collected_embeddings_state: This is a dictionary of document IDs and their embeddings.
-          update_counter_state: This is a counter that keeps track of how many documents have been
+          element: the input element
+          model_state: This is the state of the clustering model.
+          collected_docs_state: This is a stateful parameter that stores the documents that have been
+        collected so far.
+          collected_embeddings_state: This is a stateful dictionary that stores the embeddings of all the
+        documents that have been processed so far.
+          update_counter_state: This is a counter that keeps track of the number of documents that have been
         processed.
+          num_clusters_state: This is a counter that keeps track of the number of clusters.
         """
+
         # 1. Initialise or load states
         clustering = model_state.read() or Birch(n_clusters=None, threshold=0.7)
         collected_documents = collected_docs_state.read() or dict()
@@ -149,6 +163,13 @@ class StatefulOnlineClustering(beam.DoFn):
 
 
 def trigger_email_alert(receiver: str = "shubham.krishna@ml6.eu"):
+    """
+    It sends an email to the specified receiver with the specified body
+
+    Args:
+      receiver (str): The email address of the person who will receive the alert. Defaults to
+    shubham.krishna@ml6.eu
+    """
     with open("./cred.json") as json_file:
         cred = json.load(json_file)
     yag = yagmail.SMTP(**cred)
