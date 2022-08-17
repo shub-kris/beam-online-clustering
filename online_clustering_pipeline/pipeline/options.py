@@ -23,7 +23,6 @@ def get_pipeline_options(
         mode: Indicator to run local, cloud or template
         num_workers: Number of Workers for running the job parallely
         max_num_workers: Maximum number of workers running the job parallely
-        service_account: Email address of service account to use
     Returns:
         Dataflow pipeline options
     """
@@ -43,9 +42,7 @@ def get_pipeline_options(
         "autoscaling_algorithm": "THROUGHPUT_BASED",
         "save_main_session": False,
         "setup_file": "./setup.py",
-        # "subnetwork": "regions/europe-west1/subnetworks/europe-west1",
         "max_num_workers": cfg.MAX_NUM_WORKERS,
-        # "use_public_ips": False,
         "streaming": streaming,
     }
 

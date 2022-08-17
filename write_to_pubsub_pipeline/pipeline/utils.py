@@ -1,4 +1,3 @@
-import apache_beam as beam
 from sklearn.datasets import fetch_20newsgroups
 
 

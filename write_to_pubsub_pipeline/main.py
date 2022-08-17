@@ -1,9 +1,9 @@
+
 import argparse
 import sys
 import uuid
 
 import apache_beam as beam
-from apache_beam.io import WriteToBigQuery
 from apache_beam.io.gcp.pubsub import PubsubMessage, WriteToPubSub
 
 import config as cfg
@@ -18,7 +18,7 @@ def parse_arguments(argv):
         "-m",
         "--mode",
         help="Mode to run pipeline in.",
-        choices=["local", "cloud", "template"],
+        choices=["local", "cloud"],
         default="local",
     )
     parser.add_argument(
@@ -49,7 +49,6 @@ def run():
     ]
     test_categories = train_categories + ["comp.graphics"]
     train_data, train_labels = get_dataset(train_categories)
-    train_data = train_data[:10]
 
     with beam.Pipeline(options=pipeline_options) as pipeline:
         docs = (
@@ -75,6 +74,11 @@ def run():
             >> WriteToPubSub(topic=cfg.TOPIC_ID, with_attributes=True)
         )
 
+
+if __name__ == "__main__":
+    run()
+
+
         # # Write to BigQuery for tracking
         # _ = (
         #     docs
@@ -84,7 +88,3 @@ def run():
         #         write_disposition = beam.io.BigQueryDisposition.WRITE_APPEND,
         #         create_disposition=beam.io.BigQueryDisposition.CREATE_IF_NEEDED)
         #     )
-
-
-if __name__ == "__main__":
-    run()

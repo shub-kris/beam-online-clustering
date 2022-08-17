@@ -2,7 +2,6 @@ import argparse
 import sys
 
 import apache_beam as beam
-from apache_beam.io import WriteToBigQuery
 from apache_beam.io.gcp.pubsub import ReadFromPubSub
 
 import config as cfg
@@ -23,7 +22,7 @@ def parse_arguments(argv):
         "-m",
         "--mode",
         help="Mode to run pipeline in.",
-        choices=["local", "cloud", "template"],
+        choices=["local", "cloud"],
         default="local",
     )
     parser.add_argument(
@@ -67,6 +66,9 @@ def run():
 
         updated_clusters = clustering | "Format Update" >> beam.ParDo(GetUpdates())
 
+if __name__ == "__main__":
+    run()
+
         # _ = (
         #     updated_clusters
         #     | "Write to BQ" >> WriteToBigQuery(
@@ -75,7 +77,3 @@ def run():
         #         write_disposition = beam.io.BigQueryDisposition.WRITE_APPEND,
         #         create_disposition=beam.io.BigQueryDisposition.CREATE_IF_NEEDED)
         # )
-
-
-if __name__ == "__main__":
-    run()
