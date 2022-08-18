@@ -66,14 +66,6 @@ def run():
 
         updated_clusters = clustering | "Format Update" >> beam.ParDo(GetUpdates())
 
+
 if __name__ == "__main__":
     run()
-
-        # _ = (
-        #     updated_clusters
-        #     | "Write to BQ" >> WriteToBigQuery(
-        #         method='STREAMING_INSERTS',
-        #         schema=cfg.TABLE_SCHEMA,
-        #         write_disposition = beam.io.BigQueryDisposition.WRITE_APPEND,
-        #         create_disposition=beam.io.BigQueryDisposition.CREATE_IF_NEEDED)
-        # )
