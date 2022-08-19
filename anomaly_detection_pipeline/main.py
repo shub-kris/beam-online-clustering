@@ -1,13 +1,12 @@
 import argparse
-import logging
-from pprint import pprint
 import sys
 
 import apache_beam as beam
-from pipeline.options import get_pipeline_options
+from apache_beam.io.gcp.pubsub import ReadFromPubSub
+
 import config as cfg
-from pipeline.utils import get_dataset, ConvertToPubSubMessage
-from apache_beam.io.gcp.pubsub import WriteToPubSub
+from pipeline.options import get_pipeline_options
+from pipeline.transformations import Decode, GetEmbedding, Inference, NormalizeEmbedding
 
 
 def parse_arguments(argv):
@@ -17,7 +16,7 @@ def parse_arguments(argv):
         "-m",
         "--mode",
         help="Mode to run pipeline in.",
-        choices=["local", "cloud", "template"],
+        choices=["local", "cloud"],
         default="local",
     )
     parser.add_argument(
@@ -40,25 +39,21 @@ def run():
         project=args.project,
         mode=args.mode,
     )
-    train_categories = [
-        "talk.politics.guns",
-        "rec.sport.hockey",
-        "alt.atheism",
-        "sci.med",
-    ]
-    test_categories = train_categories + ["comp.graphics"]
-    train_data, train_labels = get_dataset(train_categories)
-    train_data = train_data[:10]
 
     with beam.Pipeline(options=pipeline_options) as pipeline:
-        _ = (
+        docs = (
             pipeline
-            | "Load Documents" >> beam.Create(train_data)
-            | "Take only first few words" >> beam.Map(lambda x: x[:140])
-            | "Convert to PubSub Message" >> beam.ParDo(ConvertToPubSubMessage())
-            | "Write to PubSub"
-            >> WriteToPubSub(topic=cfg.TOPIC_ID, with_attributes=True)
+            | "Read from PubSub"
+            >> ReadFromPubSub(subscription=cfg.SUBSCRIPTION_ID, with_attributes=True)
+            | "Decode PubSubMessage" >> beam.ParDo(Decode())
         )
+        embedding = (
+            docs
+            | "Get Text Embedding" >> beam.ParDo(GetEmbedding())
+            | "Normalize Embedding" >> beam.ParDo(NormalizeEmbedding())
+        )
+
+        _ = embedding | "Get Prediction from Model" >> beam.ParDo(Inference())
 
 
 if __name__ == "__main__":

@@ -3,9 +3,8 @@ import os
 from datetime import datetime
 from typing import Any
 
-from apache_beam.options.pipeline_options import PipelineOptions
-
 import config as cfg
+from apache_beam.options.pipeline_options import PipelineOptions
 
 
 def get_pipeline_options(
