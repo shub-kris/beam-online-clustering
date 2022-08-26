@@ -17,5 +17,6 @@ def get_dataset(categories: list, subset: str = "train"):
         subset=subset, remove=("headers", "footers", "quotes"), categories=categories
     )
     list_subset_data = list(newsgroups_subset.data)
+    list_subset_data = list(filter(lambda x: len(x) >= 500, list_subset_data))
     list_subset_targets = list(newsgroups_subset.target)
     return list_subset_data, list_subset_targets

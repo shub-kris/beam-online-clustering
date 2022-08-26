@@ -127,3 +127,6 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+#Custom
+online_clustering_pipeline/model_weights/
