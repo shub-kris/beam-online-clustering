@@ -3,16 +3,24 @@ import sys
 
 import apache_beam as beam
 from apache_beam.io.gcp.pubsub import ReadFromPubSub
+from apache_beam.ml.inference.base import KeyedModelHandler, RunInference
+from apache_beam.ml.inference.pytorch_inference import PytorchModelHandlerKeyedTensor
+from transformers import AutoConfig
 
 import config as cfg
 from pipeline.options import get_pipeline_options
 from pipeline.transformations import (
     Decode,
-    GetEmbedding,
     GetUpdates,
+    ModelWrapper,
     NormalizeEmbedding,
     StatefulOnlineClustering,
+    tokenize_sentence,
 )
+
+TOKENIZER_NAME = "sentence-transformers/stsb-distilbert-base"
+MODEL_STATE_DICT_PATH = "./model_weights/pytorch_model.bin"
+MODEL_CONFIG_PATH = "sentence-transformers/stsb-distilbert-base"
 
 
 def parse_arguments(argv):
@@ -46,6 +54,13 @@ def run():
         mode=args.mode,
     )
 
+    model_handler = PytorchModelHandlerKeyedTensor(
+        state_dict_path=MODEL_STATE_DICT_PATH,
+        model_class=ModelWrapper,
+        model_params={"config": AutoConfig.from_pretrained(MODEL_CONFIG_PATH)},
+        device="cpu",
+    )
+
     with beam.Pipeline(options=pipeline_options) as pipeline:
         docs = (
             pipeline
@@ -53,13 +68,14 @@ def run():
             >> ReadFromPubSub(subscription=cfg.SUBSCRIPTION_ID, with_attributes=True)
             | "Decode PubSubMessage" >> beam.ParDo(Decode())
         )
-        embedding = (
+        normalized_embedding = (
             docs
-            | "Get Text Embedding" >> beam.ParDo(GetEmbedding())
+            | "Tokenize Text" >> beam.Map(tokenize_sentence)
+            | "Get Embedding" >> RunInference(KeyedModelHandler(model_handler))
             | "Normalize Embedding" >> beam.ParDo(NormalizeEmbedding())
         )
         clustering = (
-            embedding
+            normalized_embedding
             | "Map doc to key" >> beam.Map(lambda x: (1, x))
             | "StatefulClustering using Birch" >> beam.ParDo(StatefulOnlineClustering())
         )

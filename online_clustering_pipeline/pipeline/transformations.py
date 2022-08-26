@@ -2,47 +2,53 @@ from collections import Counter, defaultdict
 
 import apache_beam as beam
 import numpy as np
+import torch
 from apache_beam.coders import PickleCoder
 from apache_beam.transforms.userstate import ReadModifyWriteStateSpec
-from sentence_transformers import SentenceTransformer
 from sklearn.cluster import Birch
+from transformers import AutoTokenizer, DistilBertModel
+
+Tokenizer = AutoTokenizer.from_pretrained("sentence-transformers/stsb-distilbert-base")
 
 
-class SentenceEmbedder:
-    def __init__(self):
-        self.model = SentenceTransformer("all-MiniLM-L6-v2")
+def tokenize_sentence(input_dict: dict):
+    """
+    It takes a dictionary with a text and an id, tokenizes the text, and returns a tuple of the text and
+    id and the tokenized text
 
-    def get_sentence_embedding(self, text: str, size_limit: int = 500):
-        """
-        It takes a string of text, truncates it to 500 characters, and then returns the embedding of that
-        truncated text
+    Args:
+      input_dict: a dictionary with the text and id of the sentence
 
-        Args:
-          text (str): The text to be embedded.
-          size_limit (int): The maximum number of characters to use from the text. Defaults to 500
-
-        Returns:
-          An embedding vector
-        """
-        truncated_text = text[:size_limit]
-        return self.model.encode([truncated_text])[0]
-
-
-## Initialize it here so that you don't have to invoke a new class object all the time
-sentence_embedder = SentenceEmbedder()
+    Returns:
+      A tuple of the text and id, and a dictionary of the tokens.
+    """
+    text, id = input_dict["text"], input_dict["id"]
+    tokens = Tokenizer(
+        [text], padding="max_length", max_length=512, return_tensors="pt"
+    )
+    tokens = {key: torch.squeeze(val) for key, val in tokens.items()}
+    return (text, id), tokens
 
 
-class GetEmbedding(beam.DoFn):
-    def process(self, element, *args, **kwargs):
-        """
-        > For each element in the input PCollection, get the sentence embedding for the text field, and
-        yield a new element with the embedding added
+class ModelWrapper(DistilBertModel):
+    def forward(self, **kwargs):
+        output = super().forward(**kwargs)
+        sentence_embedding = (
+            self.mean_pooling(output, kwargs["attention_mask"]).detach().cpu().numpy()
+        )
+        return sentence_embedding
 
-        Args:
-          element: the element that is being processed
-        """
-        sentence_embedding = sentence_embedder.get_sentence_embedding(element["text"])
-        yield {**element, "embedding": sentence_embedding}
+    # Mean Pooling - Take attention mask into account for correct averaging
+    def mean_pooling(self, model_output, attention_mask):
+        token_embeddings = model_output[
+            0
+        ]  # First element of model_output contains all token embeddings
+        input_mask_expanded = (
+            attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float()
+        )
+        return torch.sum(token_embeddings * input_mask_expanded, 1) / torch.clamp(
+            input_mask_expanded.sum(1), min=1e-9
+        )
 
 
 class NormalizeEmbedding(beam.DoFn):
@@ -53,9 +59,10 @@ class NormalizeEmbedding(beam.DoFn):
         Args:
           element: The element to be processed.
         """
-        embedding = element.get("embedding")
+        (text, id), prediction = element
+        embedding = prediction.inference
         l2_norm = np.linalg.norm(embedding)
-        yield {**element, "normalized_text_embedding": embedding / l2_norm}
+        yield {"text": text, "id": id, "embedding": embedding / l2_norm}
 
 
 class Decode(beam.DoFn):
@@ -111,7 +118,7 @@ class StatefulOnlineClustering(beam.DoFn):
         # 2. Extract document, add to state, and add to clustering model
         _, doc = element
         doc_id = doc["id"]
-        embedding_vector = doc["normalized_text_embedding"]
+        embedding_vector = doc["embedding"]
         collected_embeddings[doc_id] = embedding_vector
         collected_documents[doc_id] = {"id": doc_id, "text": doc["text"]}
         update_counter = len(collected_documents)
