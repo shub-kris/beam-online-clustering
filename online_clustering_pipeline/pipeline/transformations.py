@@ -8,7 +8,9 @@ from apache_beam.transforms.userstate import ReadModifyWriteStateSpec
 from sklearn.cluster import Birch
 from transformers import AutoTokenizer, DistilBertModel
 
-Tokenizer = AutoTokenizer.from_pretrained("sentence-transformers/stsb-distilbert-base")
+import config as cfg
+
+Tokenizer = AutoTokenizer.from_pretrained(cfg.TOKENIZER_NAME)
 
 
 def tokenize_sentence(input_dict: dict):

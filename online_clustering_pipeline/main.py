@@ -2,12 +2,10 @@ import argparse
 import sys
 
 import apache_beam as beam
+import config as cfg
 from apache_beam.io.gcp.pubsub import ReadFromPubSub
 from apache_beam.ml.inference.base import KeyedModelHandler, RunInference
 from apache_beam.ml.inference.pytorch_inference import PytorchModelHandlerKeyedTensor
-from transformers import AutoConfig
-
-import config as cfg
 from pipeline.options import get_pipeline_options
 from pipeline.transformations import (
     Decode,
@@ -17,10 +15,7 @@ from pipeline.transformations import (
     StatefulOnlineClustering,
     tokenize_sentence,
 )
-
-TOKENIZER_NAME = "sentence-transformers/stsb-distilbert-base"
-MODEL_STATE_DICT_PATH = "./model_weights/pytorch_model.bin"
-MODEL_CONFIG_PATH = "sentence-transformers/stsb-distilbert-base"
+from transformers import AutoConfig
 
 
 def parse_arguments(argv):
@@ -55,9 +50,9 @@ def run():
     )
 
     model_handler = PytorchModelHandlerKeyedTensor(
-        state_dict_path=MODEL_STATE_DICT_PATH,
+        state_dict_path=cfg.MODEL_STATE_DICT_PATH,
         model_class=ModelWrapper,
-        model_params={"config": AutoConfig.from_pretrained(MODEL_CONFIG_PATH)},
+        model_params={"config": AutoConfig.from_pretrained(cfg.MODEL_CONFIG_PATH)},
         device="cpu",
     )
 
