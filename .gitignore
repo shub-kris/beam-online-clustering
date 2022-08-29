@@ -129,4 +129,4 @@ dmypy.json
 .pyre/
 
 #Custom
-anomaly_detection_pipeline/clustering.joblib
+anomaly_detection_pipeline/model_weights/**

@@ -1,44 +1,79 @@
 import apache_beam as beam
 import hdbscan
 import numpy as np
-from joblib import load
-from sentence_transformers import SentenceTransformer
+import torch
+from apache_beam.ml.inference.base import PredictionResult
+from apache_beam.ml.inference.sklearn_inference import (
+    SklearnModelHandlerNumpy,
+    _validate_inference_args,
+)
+from transformers import AutoTokenizer, DistilBertModel
+
+import config as cfg
+
+Tokenizer = AutoTokenizer.from_pretrained(cfg.TOKENIZER_NAME)
 
 
-class SentenceEmbedder:
-    def __init__(self):
-        self.model = SentenceTransformer("all-MiniLM-L6-v2")
+def tokenize_sentence(input_dict):
+    """
+    It takes a dictionary with a text and an id, tokenizes the text, and returns a tuple of the text and
+    id and the tokenized text
 
-    def get_sentence_embedding(self, text: str, size_limit: int = 500):
-        """
-        It takes a string of text, truncates it to 500 characters, and then returns the embedding of that
-        truncated text
+    Args:
+      input_dict: a dictionary with the text and id of the sentence
+
+    Returns:
+      A tuple of the text and id, and a dictionary of the tokens.
+    """
+    text, id = input_dict["text"], input_dict["id"]
+    tokens = Tokenizer([text], padding=True, truncation=True, return_tensors="pt")
+    tokens = {key: torch.squeeze(val) for key, val in tokens.items()}
+    return (text, id), tokens
+
+
+class ModelWrapper(DistilBertModel):
+    def forward(self, **kwargs):
+        output = super().forward(**kwargs)
+        sentence_embedding = (
+            self.mean_pooling(output, kwargs["attention_mask"]).detach().cpu().numpy()
+        )
+        return sentence_embedding
+
+    # Mean Pooling - Take attention mask into account for correct averaging
+    def mean_pooling(self, model_output, attention_mask):
+        token_embeddings = model_output[
+            0
+        ]  # First element of model_output contains all token embeddings
+        input_mask_expanded = (
+            attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float()
+        )
+        return torch.sum(token_embeddings * input_mask_expanded, 1) / torch.clamp(
+            input_mask_expanded.sum(1), min=1e-9
+        )
+
+
+class CustomSklearnModelHandlerNumpy(SklearnModelHandlerNumpy):
+    def batch_elements_kwargs(self):
+        """Limit batch size to 1 for inference"""
+        return {"max_batch_size": 1}
+
+    def run_inference(self, batch, model, inference_args=None):
+        """Runs inferences on a batch of numpy arrays.
+
         Args:
-          text (str): The text to be embedded.
-          size_limit (int): The maximum number of characters to use from the text. Defaults to 500
+          batch: A sequence of examples as numpy arrays. They should
+            be single examples.
+          model: A numpy model or pipeline. Must implement predict(X).
+            Where the parameter X is a numpy array.
+          inference_args: Any additional arguments for an inference.
+
         Returns:
-          An embedding vector
+          An Iterable of type PredictionResult.
         """
-        truncated_text = text[:size_limit]
-        return self.model.encode([truncated_text])[0]
-
-
-## Initialize it here so that you don't have to invoke a new class object all the time
-sentence_embedder = SentenceEmbedder()
-# Load the trained clustering model
-clustering_model = load("clustering.joblib")
-
-
-class GetEmbedding(beam.DoFn):
-    def process(self, element, *args, **kwargs):
-        """
-        > For each element in the input PCollection, get the sentence embedding for the text field, and
-        yield a new element with the embedding added
-        Args:
-          element: the element that is being processed
-        """
-        sentence_embedding = sentence_embedder.get_sentence_embedding(element["text"])
-        yield {**element, "embedding": sentence_embedding}
+        _validate_inference_args(inference_args)
+        vectorized_batch = np.vstack(batch)
+        predictions = hdbscan.approximate_predict(model, vectorized_batch)
+        return [PredictionResult(x, y) for x, y in zip(batch, predictions)]
 
 
 class NormalizeEmbedding(beam.DoFn):
@@ -49,15 +84,17 @@ class NormalizeEmbedding(beam.DoFn):
         Args:
           element: The element to be processed.
         """
-        embedding = element.get("embedding")
+        (text, id), prediction = element
+        embedding = prediction.inference
         l2_norm = np.linalg.norm(embedding)
-        yield {**element, "normalized_text_embedding": embedding / l2_norm}
+        yield (text, id), np.expand_dims(embedding / l2_norm, axis=0)
 
 
 class Decode(beam.DoFn):
     def process(self, element, *args, **kwargs):
         """
         For each element in the input PCollection, retrieve the id and decode the bytes into string
+
         Args:
           element: The element that is being processed.
         """
@@ -67,19 +104,9 @@ class Decode(beam.DoFn):
         }
 
 
-class Inference(beam.DoFn):
+class DecodePrediction(beam.DoFn):
     def process(self, element, *args, **kwargs):
-        """
-        It takes in a dictionary of data that contains text and the embeddings,
-        and returns a dictionary of data with cluster label added
-
-        Args:
-          element: The element that is being processed.
-        """
-        normalized_embedding = np.expand_dims(
-            element.get("normalized_text_embedding"), axis=0
-        )
-        label, strength = hdbscan.approximate_predict(
-            clustering_model, normalized_embedding
-        )
-        yield {**element, "cluster": label[0]}
+        (text, id), prediction = element
+        cluster = prediction.inference.item()
+        bq_dict = {"text": text, "id": id, "cluster": cluster}
+        yield bq_dict

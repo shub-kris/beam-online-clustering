@@ -17,6 +17,7 @@ REQUIREMENTS = [
     "hdbscan==0.8.28",
     "scikit-learn==1.0.2",
     "sentence-transformers==2.2.2",
+    "pandas==1.3.5",
 ]
 
 setuptools.setup(
