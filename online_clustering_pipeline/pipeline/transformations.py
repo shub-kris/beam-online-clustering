@@ -13,7 +13,7 @@ import config as cfg
 Tokenizer = AutoTokenizer.from_pretrained(cfg.TOKENIZER_NAME)
 
 
-def tokenize_sentence(input_dict: dict):
+def tokenize_sentence(input_dict):
     """
     It takes a dictionary with a text and an id, tokenizes the text, and returns a tuple of the text and
     id and the tokenized text
@@ -25,9 +25,7 @@ def tokenize_sentence(input_dict: dict):
       A tuple of the text and id, and a dictionary of the tokens.
     """
     text, id = input_dict["text"], input_dict["id"]
-    tokens = Tokenizer(
-        [text], padding="max_length", max_length=512, return_tensors="pt"
-    )
+    tokens = Tokenizer([text], padding=True, truncation=True, return_tensors="pt")
     tokens = {key: torch.squeeze(val) for key, val in tokens.items()}
     return (text, id), tokens
 

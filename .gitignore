@@ -129,4 +129,4 @@ dmypy.json
 .pyre/
 
 #Custom
-online_clustering_pipeline/model_weights/
+online_clustering_pipeline/model_weights/**

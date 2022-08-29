@@ -2,10 +2,12 @@ import argparse
 import sys
 
 import apache_beam as beam
-import config as cfg
 from apache_beam.io.gcp.pubsub import ReadFromPubSub
 from apache_beam.ml.inference.base import KeyedModelHandler, RunInference
 from apache_beam.ml.inference.pytorch_inference import PytorchModelHandlerKeyedTensor
+from transformers import AutoConfig
+
+import config as cfg
 from pipeline.options import get_pipeline_options
 from pipeline.transformations import (
     Decode,
@@ -15,7 +17,6 @@ from pipeline.transformations import (
     StatefulOnlineClustering,
     tokenize_sentence,
 )
-from transformers import AutoConfig
 
 
 def parse_arguments(argv):
@@ -39,6 +40,19 @@ def parse_arguments(argv):
     return args
 
 
+class PytorchNoBatchModelHandler(PytorchModelHandlerKeyedTensor):
+    """Wrapper to PytorchModelHandler to limit batch size to 1.
+    The tokenized strings generated from BertTokenizer may have different
+    lengths, which doesn't work with torch.stack() in current RunInference
+    implementation since stack() requires tensors to be the same size.
+    Restricting max_batch_size to 1 means there is only 1 example per `batch`
+    in the run_inference() call.
+    """
+
+    def batch_elements_kwargs(self):
+        return {"max_batch_size": 1}
+
+
 def run():
     args = parse_arguments(sys.argv)
     pipeline_options = get_pipeline_options(
@@ -49,7 +63,7 @@ def run():
         mode=args.mode,
     )
 
-    model_handler = PytorchModelHandlerKeyedTensor(
+    model_handler = PytorchNoBatchModelHandler(
         state_dict_path=cfg.MODEL_STATE_DICT_PATH,
         model_class=ModelWrapper,
         model_params={"config": AutoConfig.from_pretrained(cfg.MODEL_CONFIG_PATH)},

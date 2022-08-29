@@ -15,7 +15,8 @@ REQUIREMENTS = [
     "apache-beam[gcp]==2.40.0",
     "numpy==1.21.6",
     "scikit-learn==1.0.2",
-    "sentence-transformers==2.2.2",
+    "transformers==4.21.1",
+    "torch==1.12.1",
 ]
 
 setuptools.setup(
