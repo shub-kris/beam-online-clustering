@@ -16,7 +16,8 @@ REQUIREMENTS = [
     "numpy==1.21.6",
     "hdbscan==0.8.28",
     "scikit-learn==1.0.2",
-    "sentence-transformers==2.2.2",
+    "transformers==4.21.1",
+    "torch==1.12.1",
     "pandas==1.3.5",
 ]
 
