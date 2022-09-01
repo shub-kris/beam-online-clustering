@@ -13,7 +13,13 @@ from setuptools import find_packages
 
 REQUIREMENTS = [
     "apache-beam[gcp]==2.40.0",
+    "numpy==1.21.6",
+    "hdbscan==0.8.28",
     "scikit-learn==1.0.2",
+    "transformers==4.21.1",
+    "torch==1.12.1",
+    "pandas==1.3.5",
+    "yagmail==0.15.283",
 ]
 
 setuptools.setup(

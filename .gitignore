@@ -129,4 +129,5 @@ dmypy.json
 .pyre/
 
 # Custom
-online_clustering_pipeline/cred.json
+anomaly_detection_pipeline/cred.json
+anomaly_detection_pipeline/model_weights/**
