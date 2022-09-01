@@ -1,4 +1,3 @@
-
 import argparse
 import sys
 import uuid
@@ -41,22 +40,14 @@ def run():
         project=args.project,
         mode=args.mode,
     )
-    train_categories = [
-        "talk.politics.guns",
-        "rec.sport.hockey",
-        "alt.atheism",
-        "sci.med",
-    ]
-    test_categories = train_categories + ["comp.graphics"]
+    train_categories = ["joy", "love", "fear"]
+    test_categories = train_categories + ["sadness"]
     train_data, train_labels = get_dataset(train_categories)
 
     with beam.Pipeline(options=pipeline_options) as pipeline:
         docs = (
             pipeline
-            | "Load Documents" >> beam.Create(train_data)
-            | "Take only first few words" >> beam.Map(lambda x: x[:1024])
-            | "Replace new lines with spaces"
-            >> beam.Map(lambda x: x.replace("\n", " "))
+            | "Load Documents" >> beam.Create(train_data[:10])
             | "Assign unique key"
             >> beam.Map(lambda x: {"id": str(uuid.uuid4()), "text": x})
         )

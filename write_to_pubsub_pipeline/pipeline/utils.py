@@ -1,7 +1,9 @@
+import numpy as np
+from datasets import load_dataset
 from sklearn.datasets import fetch_20newsgroups
 
 
-def get_dataset(categories: list, subset: str = "train"):
+def get_dataset(categories: list, split: str = "train"):
     """
     It fetches the 20 newsgroups dataset, removes headers, footers, and quotes, and returns the data and
     targets as lists
@@ -13,10 +15,13 @@ def get_dataset(categories: list, subset: str = "train"):
     Returns:
       A list of data and a list of targets.
     """
-    newsgroups_subset = fetch_20newsgroups(
-        subset=subset, remove=("headers", "footers", "quotes"), categories=categories
+    labels = ["sadness", "joy", "love", "anger", "fear", "surprise"]
+    label_map = {class_name: class_id for class_id, class_name in enumerate(labels)}
+    labels_subset = np.array([label_map[class_name] for class_name in categories])
+    emotion_dataset = load_dataset("emotion")
+    X, y = np.array(emotion_dataset[split]["text"]), np.array(
+        emotion_dataset[split]["label"]
     )
-    list_subset_data = list(newsgroups_subset.data)
-    list_subset_data = list(filter(lambda x: len(x) >= 500, list_subset_data))
-    list_subset_targets = list(newsgroups_subset.target)
-    return list_subset_data, list_subset_targets
+    subclass_idxs = [idx for idx, label in enumerate(y) if label in labels_subset]
+    X_subset, y_subset = X[subclass_idxs], y[subclass_idxs]
+    return X_subset.tolist(), y_subset.tolist()

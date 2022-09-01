@@ -13,7 +13,9 @@ from setuptools import find_packages
 
 REQUIREMENTS = [
     "apache-beam[gcp]==2.40.0",
+    "numpy==1.21.6",
     "scikit-learn==1.0.2",
+    "datasets==2.4.0",
 ]
 
 setuptools.setup(
