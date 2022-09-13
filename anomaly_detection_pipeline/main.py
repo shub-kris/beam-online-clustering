@@ -59,7 +59,6 @@ def run():
     pipeline_options = get_pipeline_options(
         job_name=cfg.JOB_NAME,
         num_workers=cfg.NUM_WORKERS,
-        max_num_workers=cfg.MAX_NUM_WORKERS,
         project=args.project,
         mode=args.mode,
     )
