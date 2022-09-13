@@ -138,7 +138,7 @@ class StatefulOnlineClustering(beam.DoFn):
         yield {
             "labels": cluster_labels,
             "docs": collected_documents,
-            "id": collected_embeddings.keys(),
+            "id": list(collected_embeddings.keys()),
             "counter": update_counter,
         }
 

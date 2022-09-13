@@ -13,13 +13,11 @@ from setuptools import find_packages
 
 REQUIREMENTS = [
     "apache-beam[gcp]==2.40.0",
-    "numpy==1.21.6",
-    "scikit-learn==1.0.2",
     "datasets==2.4.0",
 ]
 
 setuptools.setup(
-    name="catalog-dataflow-pipeline",
+    name="write-to-pubsub-pipeline",
     version="1.1.1",
     install_requires=REQUIREMENTS,
     packages=find_packages(),

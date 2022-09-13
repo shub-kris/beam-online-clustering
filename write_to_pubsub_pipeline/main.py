@@ -1,17 +1,15 @@
 import argparse
 import sys
-import uuid
 
 import apache_beam as beam
-from apache_beam.io.gcp.pubsub import PubsubMessage, WriteToPubSub
+from apache_beam.io.gcp.pubsub import WriteToPubSub
 
 import config as cfg
 from pipeline.options import get_pipeline_options
-from pipeline.utils import get_dataset
-
+from pipeline.utils import AssignUniqueID, ConvertToPubSubMessage, get_dataset
 
 def parse_arguments(argv):
-    parser = argparse.ArgumentParser(description="catalog-data")
+    parser = argparse.ArgumentParser(description="write-to-pubsub")
 
     parser.add_argument(
         "-m",
@@ -36,7 +34,6 @@ def run():
     pipeline_options = get_pipeline_options(
         job_name=cfg.JOB_NAME,
         num_workers=cfg.NUM_WORKERS,
-        max_num_workers=cfg.MAX_NUM_WORKERS,
         project=args.project,
         mode=args.mode,
     )
@@ -48,19 +45,11 @@ def run():
         docs = (
             pipeline
             | "Load Documents" >> beam.Create(train_data[:10])
-            | "Assign unique key"
-            >> beam.Map(lambda x: {"id": str(uuid.uuid4()), "text": x})
+            | "Assign unique key" >> beam.ParDo(AssignUniqueID())
         )
-
-        # Write to PubSub for streaming
         _ = (
             docs
-            | "Convert to PubSub Message"
-            >> beam.Map(
-                lambda x: PubsubMessage(
-                    data=x.get("text").encode("utf-8"), attributes={"id": x.get("id")}
-                )
-            )
+            | "Convert to PubSub Message" >> beam.ParDo(ConvertToPubSubMessage())
             | "Write to PubSub"
             >> WriteToPubSub(topic=cfg.TOPIC_ID, with_attributes=True)
         )

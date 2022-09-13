@@ -13,7 +13,6 @@ def get_pipeline_options(
     job_name: str,
     mode: str,
     num_workers: int = cfg.NUM_WORKERS,
-    max_num_workers: int = cfg.MAX_NUM_WORKERS,
     streaming: bool = True,
     **kwargs: Any,
 ) -> PipelineOptions:
@@ -39,25 +38,13 @@ def get_pipeline_options(
         "region": "us-central1",
         "staging_location": f"{staging_bucket}/dflow-staging",
         "temp_location": f"{staging_bucket}/dflow-temp",
-        "autoscaling_algorithm": "THROUGHPUT_BASED",
-        "save_main_session": False,
+        # "save_main_session": False,
         "setup_file": "./setup.py",
-        "max_num_workers": cfg.MAX_NUM_WORKERS,
         "streaming": streaming,
     }
 
     # Optional parameters
     if num_workers:
         dataflow_options.update({"num_workers": num_workers})
-
-    if max_num_workers:
-        dataflow_options.update({"max_num_workers": max_num_workers})
-
-    if mode == "template":
-        dataflow_options["template_location"] = f"{staging_bucket}/templates/{job_name}"
-
-    commit_hash = os.environ.get("commit_hash")
-    if commit_hash:
-        dataflow_options["commit_hash"] = commit_hash
 
     return PipelineOptions(flags=[], **dataflow_options)

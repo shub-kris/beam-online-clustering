@@ -20,7 +20,7 @@ from pipeline.transformations import (
 
 
 def parse_arguments(argv):
-    parser = argparse.ArgumentParser(description="catalog-data")
+    parser = argparse.ArgumentParser(description="online-clustering")
 
     parser.add_argument(
         "-m",
@@ -58,7 +58,6 @@ def run():
     pipeline_options = get_pipeline_options(
         job_name=cfg.JOB_NAME,
         num_workers=cfg.NUM_WORKERS,
-        max_num_workers=cfg.MAX_NUM_WORKERS,
         project=args.project,
         mode=args.mode,
     )
