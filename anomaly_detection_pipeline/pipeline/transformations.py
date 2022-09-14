@@ -1,7 +1,6 @@
 import json
 
 import apache_beam as beam
-import config as cfg
 import hdbscan
 import numpy as np
 import torch
@@ -12,6 +11,8 @@ from apache_beam.ml.inference.sklearn_inference import (
     _validate_inference_args,
 )
 from transformers import AutoTokenizer, DistilBertModel
+
+import config as cfg
 
 Tokenizer = AutoTokenizer.from_pretrained(cfg.TOKENIZER_NAME)
 
@@ -93,7 +94,7 @@ class NormalizeEmbedding(beam.DoFn):
 
 
 class Decode(beam.DoFn):
-    def process(self, element, *args, **kwargs):
+    def process(self, element):
         """
         For each element in the input PCollection, retrieve the id and decode the bytes into string
 
@@ -107,22 +108,31 @@ class Decode(beam.DoFn):
 
 
 class DecodePrediction(beam.DoFn):
-    def process(self, element, *args, **kwargs):
+    def process(self, element):
         (text, id), prediction = element
         cluster = prediction.inference.item()
         bq_dict = {"text": text, "id": id, "cluster": cluster}
         yield bq_dict
 
 
-def trigger_email_alert(receiver: str = "shubham.krishna@ml6.eu"):
-    """
-    It sends an email to the specified receiver with the specified body
-    Args:
-      receiver (str): The email address of the person who will receive the alert. Defaults to
-    shubham.krishna@ml6.eu
-    """
-    with open("./cred.json") as json_file:
-        cred = json.load(json_file)
-    yag = yagmail.SMTP(**cred)
-    body = "A new cluster has been created"
-    yag.send(to=receiver, subject="New Cluster Alert", contents=body)
+class TriggerEmailAlert(beam.DoFn):
+    def setup(self):
+        with open("./cred.json") as json_file:
+            cred = json.load(json_file)
+            self.yag_smtp_client = yagmail.SMTP(**cred)
+
+    def process(self, element):
+        """
+        It takes a tuple of (text, id) and a prediction, and if the prediction is -1, it sends an email to
+        the specified address
+
+        Args:
+          element: The element that is being processed.
+        """
+        (text, id), prediction = element
+        cluster = prediction.inference.item()
+        if cluster == -1:
+            body = f"Tweet-Id is {id} and text is {text}"
+            self.yag_smtp_client.send(
+                to="shubham.krishna@ml6.eu", subject="Anomaly Detected", contents=body
+            )
