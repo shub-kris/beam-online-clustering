@@ -134,5 +134,5 @@ class TriggerEmailAlert(beam.DoFn):
         if cluster == -1:
             body = f"Tweet-Id is {id} and text is {text}"
             self.yag_smtp_client.send(
-                to="shubham.krishna@ml6.eu", subject="Anomaly Detected", contents=body
+                to=cfg.EMAIL_ADDRESS, subject="Anomaly Detected", contents=body
             )

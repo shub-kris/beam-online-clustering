@@ -2,6 +2,7 @@ PROJECT_ID = "apache-beam-testing"
 SUBSCRIPTION_ID = f"projects/{PROJECT_ID}/subscriptions/newsgroup-dataset-subscription"
 JOB_NAME = "anomaly-detection-hdbscan"
 NUM_WORKERS = 1
+EMAIL_ADDRESS = "xyz@gmail.com"
 
 
 TABLE_SCHEMA = {
